@@ -3,6 +3,7 @@
 #
 # Copyright 2013 Michael Saunby
 # Copyright 2013-2015 Thomas Ackermann
+# Copyright 2015 Junkai Lu
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,10 +19,10 @@
 #
 
 #
-# Read sensors from the TI SensorTag. It's a
+# Read sensors from the TI SensorTag CC 2650. It's a
 # BLE (Bluetooth low energy) device so by
-# automating gatttool (from BlueZ 5.35) with
-# pexpect (3.1) we are able to read and write values.
+# automating gatttool (from BlueZ 5.4) with
+# pexpect (2.3).
 #
 # Usage: sensortag_test.py BLUETOOTH_ADR
 #
@@ -30,18 +31,16 @@
 #
 
 #
-# SensorTag v1.5 handle ranges 
-# (discovered by 'primary' resp. 'characteristic' cmd in gatttool):
+# SensorTag CC2650 handles
 #
-#   Temperature: 0x23 - 0x2d (set 0x29 = 01; read 0x25)
-# Accelerometer: 0x2e - 0x38
-#      Humidity: 0x39 - 0x43 (set 0x3f = 01; read 0x3b)
-#  Magnetometer: 0x44 - 0x4e
-#     Barometer: 0x4f - 0x5d (set 0x55 = 01/02; read 0x51/0x5b)
-#     Gyroscope: 0x5e - 0x68
-#          Keys: 0x69 - 0x6d
-#          Test: 0x6e - 0x74 (POST = 0x70; bits: 0 0 gyro press acc mag hum temp, 
-#                                                0x3f means "OK"
+# IR Temperature: char-write-cmd 0x24 01: enable IR temperature sensor
+#		  char-read-hnd 0x21: read IR temperature data
+#       Humidity: char-write-cmd 0x2c 01: enable humidity sensor
+#  	          char-read-hnd 0x29: read humidity data
+#      Barometer: char-write-cmd 0x34 01: enable barometer
+#                 char-read-hnd 0x31: read barometer data
+#  Ambient Light: char-write-cmd 0x44 01: enable light sensor
+#                 char-read-hnd 0x41: read light sensor data
 #
 
 import os
@@ -76,17 +75,11 @@ stamp = ""
 handle = ""
 
 def log_values():
-  # print adr, "   CNT %d" % cnt
-  # print adr, "  POST 0x%s" % post
   print adr, " IRTMP %.1f" % it
   print adr, " AMTMP %.1f" % at
-  # print adr, " HMTMP %.1f" % ht
-  # print adr, " BRTMP %.1f" % pt
   print adr, " HUMID %.1f" % hu
   print adr, " BAROM %.1f" % pr
   print adr, " AMTLT %.1f" % lt
-  # print adr, " EXCPT %d" % exc
-  # print adr, " ACTEX %d" % act
   print adr, " STAMP '%s'" % stamp
 
   # data = open(logdir+"/"+adr, "w")
@@ -105,37 +98,16 @@ def log_values():
 while True:
 
   try:
-
+  	
     print adr, " Trying to connect. You might need to press the side button ..."
-
-    # tool = pexpect.spawn('gatttool535 -b ' + adr + ' --interactive')
     pexpect.spawn('hcitool lecc ' + adr)
-	tool = pexpect.spawn('gatttool -b ' + adr + ' --interactive')
-	tool.expect('\[LE\]>')
+    tool = pexpect.spawn('gatttool -b ' + adr + ' --interactive')
+    tool.expect('\[LE\]>')
     tool.sendline('connect')
-    # tool.expect('success')
-
-    # print adr, " Switching to a lower energy connection ..."
-
-    # gatttool not really connects with enough 'low energy' so reconfigure
-    # the connection to the values preferred by SensorTag (see characteristic 0x2A04):
-    # i.e. min interval to 100ms and max interval to 200ms.
-    # By this the current needed for 'just being connected' in the SensorTag 
-    # drops from 0.35mA to 0.01mA.
-    # cons = pexpect.run('hcitool con')
-    # cons = cons.split("\r\n")
-    # for con in cons:
-      # if adr in con:
-        # tok = con.split()
-        # handle = tok[4]
-        # state = tok[6]
-        # error = pexpect.run('sudo hcitool lecup --handle ' + handle + ' --min 80 --max 160')
-        # if error <> "":
-        #   print "hcittool error: '" + error + "' (handle: " + handle + ", state: " + state + ")"
 
     print adr, " Enabling sensors ..."
 
-    # enable temperature sensor
+    # enable IR temperature sensor
     tool.sendline('char-write-cmd 0x24 01')
     tool.expect('\[LE\]>')
 
@@ -146,32 +118,15 @@ while True:
     # enable barometric pressure sensor
     tool.sendline('char-write-cmd 0x34 01')
     tool.expect('\[LE\]>')
-
-	# enable light sensor
+    
+    # enable ambient light sensor
     tool.sendline('char-write-cmd 0x44 01')
     tool.expect('\[LE\]>')
-	
-    # tool.sendline('char-read-hnd 0x5b')
-    # tool.expect('descriptor: .*? \r')
-
-    # after = tool.after
-    # v = after.split()[1:] 
-    # vals = [long(float.fromhex(n)) for n in v]
-    # barometer = Barometer( vals )
-
-    # tool.sendline('char-write-req 0x55 01')
-    # tool.expect('\[LE\]>')
 
     # wait for the sensors to become ready
     time.sleep(1)
 
     while True:
-
-        # read POST result
-        # tool.sendline('char-read-hnd 0x70')
-        # tool.expect('descriptor: .*? \r') 
-        # v = tool.after.split()
-        # post = v[1]
 
         # read IR temperature sensor
         tool.sendline('char-read-hnd 0x21')
@@ -193,11 +148,10 @@ while True:
         tool.sendline('char-read-hnd 0x31')
         tool.expect('descriptor: .*? \r') 
         v = tool.after.split()
-        # rawT = long(float.fromhex(v[2] + v[1]))
         rawP = long(float.fromhex(v[6] + v[5] + v[4]))
         pr = calcBaro(rawP)
 
-        # read light sensor
+        # read ambient light sensor
         tool.sendline('char-read-hnd 0x41')
         tool.expect('descriptor: .*? \r') 
         v = tool.after.split()
