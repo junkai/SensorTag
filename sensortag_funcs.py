@@ -10,7 +10,6 @@ def calcTmp(ambT, objT):
 
 def calcHum(rawT, rawH):
     temp = -40 + 165.0/65536.0 * rawT # [deg C]
-    # -- calculate temperature [deg C] --
     hum = (float(rawH)/65536) * 100  # [%RH]
     return (temp, hum)
 
