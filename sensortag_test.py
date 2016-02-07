@@ -68,18 +68,28 @@ pt = 0
 hu = 0
 pr = 0
 lt = 0
+value_CO2 = 0
 exc = 0
 act = 0
 post = ""
 stamp = ""
 handle = ""
 
+ZERO_POINT_VOLTAGE = 0.324 #define the output of the sensor in volts when the concentration of
+REACTION_VOLTAGE = 0.020 # define the voltage drop of the sensor when moving the sensor from air
+
+DC_GAIN = 8.5
+a = 2.602
+b = ZERO_POINT_VOLTAGE
+c = REACTION_VOLTAGE/(2.602-3)
+
 def log_values():
-  print adr, " IRTMP %.1f" % it
-  print adr, " AMTMP %.1f" % at
+  # print adr, " IRTMP %.1f" % it
+  print adr, " AMTMP %.1f" % ht
   print adr, " HUMID %.1f" % hu
   print adr, " BAROM %.1f" % pr
-  print adr, " AMTLT %.1f" % lt
+  print adr, " LTLUX %.1f" % lt
+  print adr, " CO2PPM %.1f" % value_CO2
   print adr, " STAMP '%s'" % stamp
 
   # data = open(logdir+"/"+adr, "w")
@@ -156,7 +166,12 @@ while True:
         tool.expect('descriptor: .*? \r') 
         v = tool.after.split()
         rawL = long(float.fromhex(v[2] + v[1]))
-        lt = calcLight(rawL)		
+        lt = calcLight(rawL)	
+        
+        # read CO2 sensor
+        volts_raw = ADC.read("P9_39")*5
+        temp = volts_raw*(2.75/2.12)
+        value_CO2 = pow(10, ((temp/DC_GAIN)-b)/c + a )
 		
         cnt = cnt + 1
 
