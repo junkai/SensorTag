@@ -48,6 +48,7 @@ import sys
 import time
 import pexpect
 from datetime import datetime
+import Adafruit_BBIO.ADC as ADC
 
 sys.path.append('../.')
 from sensortag_funcs import *
